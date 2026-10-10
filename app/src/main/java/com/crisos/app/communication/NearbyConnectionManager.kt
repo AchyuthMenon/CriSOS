@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Uses P2P_CLUSTER strategy for many-to-many mesh connections.
  * Both advertises and discovers simultaneously to find peers.
- * Includes continuous monitoring, auto-reconnection, and unambiguous peer state tracking.
+ * Filters out self-discovered BLE loopbacks (e.g., on Vivo/MediaTek hardware).
  */
 class NearbyConnectionManager(
     private val context: Context,
@@ -73,8 +73,33 @@ class NearbyConnectionManager(
     // Callback when an endpoint connects successfully
     var onEndpointConnected: ((String) -> Unit)? = null
 
-    private val localDeviceName: String
-        get() = android.os.Build.MODEL.ifBlank { "CriSOS Peer" }
+    // Device identification to filter out self-advertisements on devices with non-filtering BLE controllers
+    val localDeviceId: String = DeviceUtils.getDeviceId(context)
+    private val localModelName: String = android.os.Build.MODEL.ifBlank { "CriSOS Peer" }
+
+    // Wire format: "ModelName::DeviceId"
+    private val localAdvertisingName: String = "$localModelName::$localDeviceId"
+
+    private fun parseEndpointInfo(rawName: String): Pair<String, String> {
+        val parts = rawName.split("::")
+        return if (parts.size >= 2) {
+            val model = parts[0].ifBlank { "Nearby Peer" }
+            val id = parts[1]
+            Pair(model, id)
+        } else {
+            Pair(rawName.ifBlank { "Nearby Peer" }, "")
+        }
+    }
+
+    private fun isSelfEndpoint(rawName: String): Boolean {
+        val (_, peerDeviceId) = parseEndpointInfo(rawName)
+        return peerDeviceId.isNotBlank() && peerDeviceId == localDeviceId
+    }
+
+    private fun getDisplayName(rawName: String): String {
+        val (model, _) = parseEndpointInfo(rawName)
+        return model
+    }
 
     /**
      * Start advertising, discovering, and continuous connection monitoring.
@@ -86,7 +111,7 @@ class NearbyConnectionManager(
         startAdvertising()
         startDiscovery()
         startContinuousMonitoring()
-        Log.i(TAG, "CriSOS Nearby networking started ($localDeviceName)")
+        Log.i(TAG, "CriSOS Nearby networking started ($localAdvertisingName)")
     }
 
     /**
@@ -127,12 +152,12 @@ class NearbyConnectionManager(
             .build()
 
         connectionsClient.startAdvertising(
-            localDeviceName,
+            localAdvertisingName,
             SERVICE_ID,
             connectionLifecycleCallback,
             options
         ).addOnSuccessListener {
-            Log.d(TAG, "Advertising started successfully")
+            Log.d(TAG, "Advertising started successfully as $localAdvertisingName")
         }.addOnFailureListener { e ->
             Log.e(TAG, "Advertising failed", e)
             _lastError.value = "Advertising failed: ${e.message}"
@@ -203,9 +228,11 @@ class NearbyConnectionManager(
         val connected = _connectedEndpoints.value
         val discovered = _discoveredEndpoints.value
 
-        for ((endpointId, _) in discovered) {
+        for ((endpointId, rawName) in discovered) {
+            if (isSelfEndpoint(rawName)) continue
+
             if (!connected.contains(endpointId) && !pendingConnectionEndpoints.contains(endpointId)) {
-                Log.d(TAG, "Attempting connection to discovered peer: $endpointId")
+                Log.d(TAG, "Attempting connection to discovered peer: $endpointId ($rawName)")
                 connectToEndpoint(endpointId)
             }
         }
@@ -215,13 +242,18 @@ class NearbyConnectionManager(
         if (_connectedEndpoints.value.contains(endpointId)) {
             return
         }
+        val rawName = _discoveredEndpoints.value[endpointId] ?: ""
+        if (isSelfEndpoint(rawName)) {
+            Log.d(TAG, "Preventing connection to self-discovered endpoint: $endpointId")
+            return
+        }
         if (!pendingConnectionEndpoints.add(endpointId)) {
             return // Connection already in progress
         }
 
-        Log.d(TAG, "Requesting connection to $endpointId ($localDeviceName)")
+        Log.d(TAG, "Requesting connection to $endpointId from $localAdvertisingName")
         connectionsClient.requestConnection(
-            localDeviceName,
+            localAdvertisingName,
             endpointId,
             connectionLifecycleCallback
         ).addOnSuccessListener {
@@ -238,16 +270,26 @@ class NearbyConnectionManager(
     }
 
     private fun markEndpointConnected(endpointId: String) {
-        val peerName = _discoveredEndpoints.value[endpointId] ?: "Nearby Device"
+        val rawName = _discoveredEndpoints.value[endpointId] ?: "Nearby Device"
+        if (isSelfEndpoint(rawName)) {
+            Log.w(TAG, "Ignoring self-loopback mark connected: $endpointId")
+            return
+        }
+        val friendlyName = getDisplayName(rawName)
         _connectedEndpoints.update { it + endpointId }
-        _connectedPeerNames.update { it + (endpointId to peerName) }
+        _connectedPeerNames.update { it + (endpointId to friendlyName) }
         onEndpointConnected?.invoke(endpointId)
-        Log.i(TAG, "Endpoint successfully connected: $endpointId ($peerName)")
+        Log.i(TAG, "Endpoint successfully connected: $endpointId ($friendlyName)")
     }
 
     private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
-            Log.d(TAG, "Discovered endpoint: $endpointId (${info.endpointName})")
+            if (isSelfEndpoint(info.endpointName)) {
+                Log.d(TAG, "Ignoring self-discovered BLE beacon from own device: $endpointId")
+                return
+            }
+            val friendlyName = getDisplayName(info.endpointName)
+            Log.d(TAG, "Discovered peer endpoint: $endpointId ($friendlyName)")
             _discoveredEndpoints.update { it + (endpointId to info.endpointName) }
             // Immediately initiate connection
             connectToEndpoint(endpointId)
@@ -265,7 +307,15 @@ class NearbyConnectionManager(
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            Log.d(TAG, "Connection initiated with: $endpointId (${info.endpointName})")
+            if (isSelfEndpoint(info.endpointName)) {
+                Log.w(TAG, "Rejecting self-connection loopback from own device: $endpointId")
+                connectionsClient.rejectConnection(endpointId)
+                pendingConnectionEndpoints.remove(endpointId)
+                return
+            }
+
+            val friendlyName = getDisplayName(info.endpointName)
+            Log.d(TAG, "Connection initiated with: $endpointId ($friendlyName)")
             // Store peer name from handshake info
             _discoveredEndpoints.update { current ->
                 if (!current.containsKey(endpointId)) current + (endpointId to info.endpointName) else current
@@ -274,7 +324,7 @@ class NearbyConnectionManager(
             // Auto-accept connection
             connectionsClient.acceptConnection(endpointId, payloadCallback)
                 .addOnSuccessListener {
-                    Log.d(TAG, "Accepted connection from $endpointId")
+                    Log.d(TAG, "Accepted connection from $endpointId ($friendlyName)")
                 }
                 .addOnFailureListener { e ->
                     Log.e(TAG, "Failed to accept connection from $endpointId", e)
