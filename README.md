@@ -4,6 +4,8 @@
 
 CriSOS enables people to send emergency SOS messages containing their location and immediate needs when mobile networks and internet connectivity are unavailable. Messages are exchanged directly between nearby Android devices using Bluetooth and Wi-Fi Direct via Google Nearby Connections.
 
+> 📖 **Full Technical Architecture & Internal Mechanics Guide**: See [PROJECT_DOCUMENTATION.md](file:///c:/CriSOS/PROJECT_DOCUMENTATION.md) for in-depth details on how the offline mesh networking, multi-hop relaying, loop suppression, and radio hardware filtering work.
+
 ## Architecture
 
 ```
