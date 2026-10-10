@@ -4,13 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.crisos.app.CrisosApplication
-import com.crisos.app.domain.model.*
+import com.crisos.app.domain.model.DeviceStatus
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 
 /**
  * ViewModel for the Home screen.
- * Provides device status, message counts, and nearby connection state.
+ * Provides reactive device status, message counts, and peer connection state.
  */
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -26,24 +25,29 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val connectedDevices: StateFlow<Set<String>> = nearbyManager.connectedEndpoints
-
+    val connectedPeerNames: StateFlow<Map<String, String>> = nearbyManager.connectedPeerNames
     val isNearbyActive: StateFlow<Boolean> = nearbyManager.isActive
 
-    private val _deviceStatus = MutableStateFlow(DeviceStatus())
-    val deviceStatus: StateFlow<DeviceStatus> = _deviceStatus.asStateFlow()
+    private val manualRefreshTrigger = MutableStateFlow(0)
 
-    init {
-        refreshDeviceStatus()
-    }
-
-    fun refreshDeviceStatus() {
-        _deviceStatus.value = DeviceStatus(
+    val deviceStatus: StateFlow<DeviceStatus> = combine(
+        nearbyManager.isActive,
+        nearbyManager.connectedEndpoints,
+        nearbyManager.discoveredEndpoints,
+        manualRefreshTrigger
+    ) { isActive, connected, discovered, _ ->
+        val unconnectedDiscovered = (discovered.keys - connected).size
+        DeviceStatus(
             isLocationPermissionGranted = locationService.hasLocationPermission(),
             isLocationEnabled = locationService.isLocationEnabled(),
-            isNearbyActive = nearbyManager.isActive.value,
-            connectedDeviceCount = nearbyManager.connectedEndpoints.value.size,
-            discoveredDeviceCount = nearbyManager.discoveredEndpoints.value.size
+            isNearbyActive = isActive,
+            connectedDeviceCount = connected.size,
+            discoveredDeviceCount = unconnectedDiscovered
         )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DeviceStatus())
+
+    fun refreshDeviceStatus() {
+        manualRefreshTrigger.update { it + 1 }
     }
 
     fun toggleNearby() {
@@ -52,6 +56,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             nearbyManager.start()
         }
+        refreshDeviceStatus()
+    }
+
+    fun rescanNow() {
+        nearbyManager.rescanNow()
         refreshDeviceStatus()
     }
 }

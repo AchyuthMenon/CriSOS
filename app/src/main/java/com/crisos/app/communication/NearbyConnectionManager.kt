@@ -3,26 +3,35 @@ package com.crisos.app.communication
 import android.content.Context
 import android.util.Log
 import com.crisos.app.domain.model.SosMessage
+import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.*
 import com.google.gson.Gson
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Manages device-to-device communication via Google Nearby Connections API.
  *
- * Uses P2P_CLUSTER strategy for many-to-many connections.
+ * Uses P2P_CLUSTER strategy for many-to-many mesh connections.
  * Both advertises and discovers simultaneously to find peers.
+ * Includes continuous monitoring, auto-reconnection, and unambiguous peer state tracking.
  */
-class NearbyConnectionManager(private val context: Context) {
+class NearbyConnectionManager(
+    private val context: Context,
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+) {
 
     companion object {
         private const val TAG = "NearbyConn"
         private const val SERVICE_ID = "com.crisos.app.nearby"
         private val STRATEGY = Strategy.P2P_CLUSTER
+        private const val MONITOR_CHECK_INTERVAL_MS = 6000L
+        private const val RESCAN_INTERVAL_MS = 24000L
     }
 
     private val connectionsClient = Nearby.getConnectionsClient(context)
@@ -32,9 +41,16 @@ class NearbyConnectionManager(private val context: Context) {
     private val _connectedEndpoints = MutableStateFlow<Set<String>>(emptySet())
     val connectedEndpoints: StateFlow<Set<String>> = _connectedEndpoints.asStateFlow()
 
-    // Discovered endpoint IDs
-    private val _discoveredEndpoints = MutableStateFlow<Map<String, String>>(emptyMap()) // id -> name
+    // Discovered endpoint IDs -> names
+    private val _discoveredEndpoints = MutableStateFlow<Map<String, String>>(emptyMap())
     val discoveredEndpoints: StateFlow<Map<String, String>> = _discoveredEndpoints.asStateFlow()
+
+    // Connected endpoint IDs -> names for unambiguous UI representation
+    private val _connectedPeerNames = MutableStateFlow<Map<String, String>>(emptyMap())
+    val connectedPeerNames: StateFlow<Map<String, String>> = _connectedPeerNames.asStateFlow()
+
+    // In-flight connection requests to prevent simultaneous handshake storms
+    private val pendingConnectionEndpoints = ConcurrentHashMap.newKeySet<String>()
 
     // Connection state
     private val _isActive = MutableStateFlow(false)
@@ -43,6 +59,10 @@ class NearbyConnectionManager(private val context: Context) {
     // Last error
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
+
+    // Background continuous monitor job
+    private var monitorJob: Job? = null
+    private var lastRescanTimestamp = 0L
 
     // Callback for received messages (message, senderEndpointId)
     var onMessageReceived: ((SosMessage, String) -> Unit)? = null
@@ -54,27 +74,51 @@ class NearbyConnectionManager(private val context: Context) {
     var onEndpointConnected: ((String) -> Unit)? = null
 
     private val localDeviceName: String
-        get() = android.os.Build.MODEL
+        get() = android.os.Build.MODEL.ifBlank { "CriSOS Peer" }
 
     /**
-     * Start advertising and discovering simultaneously.
+     * Start advertising, discovering, and continuous connection monitoring.
      */
     fun start() {
+        if (_isActive.value) return
+        _isActive.value = true
+        lastRescanTimestamp = System.currentTimeMillis()
         startAdvertising()
         startDiscovery()
-        _isActive.value = true
+        startContinuousMonitoring()
+        Log.i(TAG, "CriSOS Nearby networking started ($localDeviceName)")
     }
 
     /**
-     * Stop all connections.
+     * Stop all connections, advertising, and discovery.
      */
     fun stop() {
-        connectionsClient.stopAdvertising()
-        connectionsClient.stopDiscovery()
-        connectionsClient.stopAllEndpoints()
+        monitorJob?.cancel()
+        monitorJob = null
+        try {
+            connectionsClient.stopAdvertising()
+            connectionsClient.stopDiscovery()
+            connectionsClient.stopAllEndpoints()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping Nearby client", e)
+        }
+        pendingConnectionEndpoints.clear()
         _connectedEndpoints.value = emptySet()
         _discoveredEndpoints.value = emptyMap()
+        _connectedPeerNames.value = emptyMap()
         _isActive.value = false
+        Log.i(TAG, "CriSOS Nearby networking stopped")
+    }
+
+    /**
+     * Trigger immediate re-scan and reconnect attempt for discovered peers.
+     */
+    fun rescanNow() {
+        if (!_isActive.value) return
+        Log.d(TAG, "Manual re-scan requested")
+        lastRescanTimestamp = System.currentTimeMillis()
+        restartDiscovery()
+        checkAndConnectUnconnectedPeers()
     }
 
     private fun startAdvertising() {
@@ -88,7 +132,7 @@ class NearbyConnectionManager(private val context: Context) {
             connectionLifecycleCallback,
             options
         ).addOnSuccessListener {
-            Log.d(TAG, "Advertising started")
+            Log.d(TAG, "Advertising started successfully")
         }.addOnFailureListener { e ->
             Log.e(TAG, "Advertising failed", e)
             _lastError.value = "Advertising failed: ${e.message}"
@@ -105,60 +149,161 @@ class NearbyConnectionManager(private val context: Context) {
             endpointDiscoveryCallback,
             options
         ).addOnSuccessListener {
-            Log.d(TAG, "Discovery started")
+            Log.d(TAG, "Discovery started successfully")
         }.addOnFailureListener { e ->
             Log.e(TAG, "Discovery failed", e)
             _lastError.value = "Discovery failed: ${e.message}"
         }
     }
 
+    private fun restartDiscovery() {
+        try {
+            connectionsClient.stopDiscovery()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to stop discovery during restart", e)
+        }
+        coroutineScope.launch {
+            delay(500L)
+            if (_isActive.value) {
+                startDiscovery()
+            }
+        }
+    }
+
+    /**
+     * Continuously checks for unconnected discovered devices and triggers reconnection.
+     * Also refreshes discovery if no peers are connected to keep BLE/WiFi radios active.
+     */
+    private fun startContinuousMonitoring() {
+        monitorJob?.cancel()
+        monitorJob = coroutineScope.launch {
+            while (isActive) {
+                delay(MONITOR_CHECK_INTERVAL_MS)
+                if (!_isActive.value) break
+
+                try {
+                    // Check discovered devices and initiate connection if not connected
+                    checkAndConnectUnconnectedPeers()
+
+                    // If zero peers are connected, refresh discovery periodically to unstick radio scans
+                    val now = System.currentTimeMillis()
+                    if (_connectedEndpoints.value.isEmpty() && (now - lastRescanTimestamp) >= RESCAN_INTERVAL_MS) {
+                        Log.d(TAG, "No peers connected; refreshing discovery scan to keep radio active")
+                        lastRescanTimestamp = now
+                        restartDiscovery()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Exception in continuous monitoring loop", e)
+                }
+            }
+        }
+    }
+
+    private fun checkAndConnectUnconnectedPeers() {
+        val connected = _connectedEndpoints.value
+        val discovered = _discoveredEndpoints.value
+
+        for ((endpointId, _) in discovered) {
+            if (!connected.contains(endpointId) && !pendingConnectionEndpoints.contains(endpointId)) {
+                Log.d(TAG, "Attempting connection to discovered peer: $endpointId")
+                connectToEndpoint(endpointId)
+            }
+        }
+    }
+
+    fun connectToEndpoint(endpointId: String) {
+        if (_connectedEndpoints.value.contains(endpointId)) {
+            return
+        }
+        if (!pendingConnectionEndpoints.add(endpointId)) {
+            return // Connection already in progress
+        }
+
+        Log.d(TAG, "Requesting connection to $endpointId ($localDeviceName)")
+        connectionsClient.requestConnection(
+            localDeviceName,
+            endpointId,
+            connectionLifecycleCallback
+        ).addOnSuccessListener {
+            Log.d(TAG, "Connection request sent to $endpointId")
+        }.addOnFailureListener { e ->
+            pendingConnectionEndpoints.remove(endpointId)
+            Log.w(TAG, "Connection request failed to $endpointId: ${e.message}")
+
+            // If already connected at API level, register as connected
+            if (e is ApiException && e.statusCode == ConnectionsStatusCodes.STATUS_ALREADY_CONNECTED_TO_ENDPOINT) {
+                markEndpointConnected(endpointId)
+            }
+        }
+    }
+
+    private fun markEndpointConnected(endpointId: String) {
+        val peerName = _discoveredEndpoints.value[endpointId] ?: "Nearby Device"
+        _connectedEndpoints.update { it + endpointId }
+        _connectedPeerNames.update { it + (endpointId to peerName) }
+        onEndpointConnected?.invoke(endpointId)
+        Log.i(TAG, "Endpoint successfully connected: $endpointId ($peerName)")
+    }
+
     private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
-            Log.d(TAG, "Found endpoint: $endpointId (${info.endpointName})")
+            Log.d(TAG, "Discovered endpoint: $endpointId (${info.endpointName})")
             _discoveredEndpoints.update { it + (endpointId to info.endpointName) }
-
-            // Auto-connect
-            connectionsClient.requestConnection(
-                localDeviceName,
-                endpointId,
-                connectionLifecycleCallback
-            ).addOnFailureListener { e ->
-                Log.e(TAG, "Connection request failed to $endpointId", e)
-            }
+            // Immediately initiate connection
+            connectToEndpoint(endpointId)
         }
 
         override fun onEndpointLost(endpointId: String) {
-            Log.d(TAG, "Lost endpoint: $endpointId")
-            _discoveredEndpoints.update { it - endpointId }
+            Log.d(TAG, "Lost discovery beacon for endpoint: $endpointId")
+            // Note: Keep in _discoveredEndpoints if connected to preserve peer name,
+            // only prune if not connected.
+            if (!_connectedEndpoints.value.contains(endpointId)) {
+                _discoveredEndpoints.update { it - endpointId }
+            }
         }
     }
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
             Log.d(TAG, "Connection initiated with: $endpointId (${info.endpointName})")
-            // Auto-accept all CriSOS connections
+            // Store peer name from handshake info
+            _discoveredEndpoints.update { current ->
+                if (!current.containsKey(endpointId)) current + (endpointId to info.endpointName) else current
+            }
+
+            // Auto-accept connection
             connectionsClient.acceptConnection(endpointId, payloadCallback)
+                .addOnSuccessListener {
+                    Log.d(TAG, "Accepted connection from $endpointId")
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Failed to accept connection from $endpointId", e)
+                    pendingConnectionEndpoints.remove(endpointId)
+                }
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
+            pendingConnectionEndpoints.remove(endpointId)
+
             when (result.status.statusCode) {
-                ConnectionsStatusCodes.STATUS_OK -> {
-                    Log.d(TAG, "Connected to: $endpointId")
-                    _connectedEndpoints.update { it + endpointId }
-                    onEndpointConnected?.invoke(endpointId)
+                ConnectionsStatusCodes.STATUS_OK,
+                ConnectionsStatusCodes.STATUS_ALREADY_CONNECTED_TO_ENDPOINT -> {
+                    markEndpointConnected(endpointId)
                 }
                 ConnectionsStatusCodes.STATUS_CONNECTION_REJECTED -> {
-                    Log.d(TAG, "Connection rejected by: $endpointId")
+                    Log.w(TAG, "Connection rejected by: $endpointId")
                 }
                 else -> {
-                    Log.d(TAG, "Connection failed with: $endpointId, status: ${result.status}")
+                    Log.w(TAG, "Connection attempt ended with status: ${result.status.statusCode} (${result.status}) for $endpointId")
                 }
             }
         }
 
         override fun onDisconnected(endpointId: String) {
             Log.d(TAG, "Disconnected from: $endpointId")
+            pendingConnectionEndpoints.remove(endpointId)
             _connectedEndpoints.update { it - endpointId }
+            _connectedPeerNames.update { it - endpointId }
         }
     }
 
@@ -178,7 +323,7 @@ class NearbyConnectionManager(private val context: Context) {
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
-            // For BYTES payloads, transfer is immediate — no progress tracking needed
+            // BYTES payloads transfer immediately
         }
     }
 

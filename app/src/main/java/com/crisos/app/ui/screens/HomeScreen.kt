@@ -35,6 +35,7 @@ fun HomeScreen(
     val receivedCount by viewModel.receivedCount.collectAsState()
     val deviceStatus by viewModel.deviceStatus.collectAsState()
     val connectedDevices by viewModel.connectedDevices.collectAsState()
+    val connectedPeerNames by viewModel.connectedPeerNames.collectAsState()
     val isNearbyActive by viewModel.isNearbyActive.collectAsState()
 
     // Refresh status when screen is shown
@@ -123,17 +124,32 @@ fun HomeScreen(
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold
                         )
-                        TextButton(
-                            onClick = { viewModel.toggleNearby() },
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = if (isNearbyActive) StatusGreen else EmergencyRed
-                            )
-                        ) {
-                            Text(
-                                text = if (isNearbyActive) "Active" else "Start",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isNearbyActive) {
+                                IconButton(
+                                    onClick = { viewModel.rescanNow() },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Refresh,
+                                        contentDescription = "Re-scan peers",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            TextButton(
+                                onClick = { viewModel.toggleNearby() },
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = if (isNearbyActive) StatusGreen else EmergencyRed
+                                )
+                            ) {
+                                Text(
+                                    text = if (isNearbyActive) "Active" else "Start",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
 
@@ -157,6 +173,65 @@ fun HomeScreen(
                             isActive = connectedDevices.isNotEmpty(),
                             activeColor = StatusGreen
                         )
+                    }
+
+                    if (isNearbyActive) {
+                        Spacer(Modifier.height(10.dp))
+                        HorizontalDivider(color = SurfaceBorder)
+                        Spacer(Modifier.height(8.dp))
+                        if (connectedPeerNames.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(StatusGreen, shape = androidx.compose.foundation.shape.CircleShape)
+                                )
+                                Text(
+                                    text = "Connected: ${connectedPeerNames.values.joinToString(", ")}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = StatusGreen,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        } else if (deviceStatus.discoveredDeviceCount > 0) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(StatusBlue, shape = androidx.compose.foundation.shape.CircleShape)
+                                )
+                                Text(
+                                    text = "Discovered ${deviceStatus.discoveredDeviceCount} nearby peer(s) — connecting...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = StatusBlue
+                                )
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(TextMuted, shape = androidx.compose.foundation.shape.CircleShape)
+                                )
+                                Text(
+                                    text = "Scanning continuously for nearby devices...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted
+                                )
+                            }
+                        }
                     }
                 }
             }

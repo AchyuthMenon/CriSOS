@@ -27,6 +27,8 @@ fun SettingsScreen(
 ) {
     val deviceStatus by viewModel.deviceStatus.collectAsState()
     val isNearbyActive by viewModel.isNearbyActive.collectAsState()
+    val connectedPeerNames by viewModel.connectedPeerNames.collectAsState()
+    val discoveredEndpoints by viewModel.discoveredEndpoints.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.refreshStatus()
@@ -118,15 +120,15 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Nearby Connections",
+                            "Nearby Mesh Networking",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextPrimary
                         )
                         Text(
-                            if (isNearbyActive) "Active — Discovering and advertising"
-                            else "Inactive — Tap to start",
+                            if (isNearbyActive) "Active — Continuous background scanning & auto-connect"
+                            else "Inactive — Tap switch to start",
                             style = MaterialTheme.typography.bodySmall,
                             color = if (isNearbyActive) StatusGreen else TextMuted
                         )
@@ -142,24 +144,11 @@ fun SettingsScreen(
                 }
 
                 if (isNearbyActive) {
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(12.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                "${deviceStatus.discoveredDeviceCount}",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = StatusBlue,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                "Discovered",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextMuted
-                            )
-                        }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 "${deviceStatus.connectedDeviceCount}",
@@ -168,12 +157,128 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                "Connected",
+                                "Connected Peers",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "${deviceStatus.discoveredDeviceCount}",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = StatusBlue,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Pending / In Range",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = TextMuted
                             )
                         }
                     }
+
+                    Spacer(Modifier.height(10.dp))
+                    HorizontalDivider(color = SurfaceBorder)
+                    Spacer(Modifier.height(10.dp))
+
+                    // Connected peers list
+                    if (connectedPeerNames.isNotEmpty()) {
+                        Text(
+                            text = "Connected Devices:",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        connectedPeerNames.forEach { (_, name) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = StatusGreen,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextPrimary,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = "Connected",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = StatusGreen
+                                )
+                            }
+                        }
+                    }
+
+                    // Discovered but not yet connected
+                    val pendingPeers = discoveredEndpoints.filterKeys { !connectedPeerNames.containsKey(it) }
+                    if (pendingPeers.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Connecting to in-range peers:",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        pendingPeers.forEach { (_, name) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Sync,
+                                    contentDescription = null,
+                                    tint = StatusBlue,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextPrimary,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = "Handshaking...",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = StatusBlue
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = { viewModel.refreshStatus() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Re-scan & Check Connections Now")
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "CriSOS checks continuously every few seconds for nearby devices and connects automatically using Bluetooth & Wi-Fi Direct.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted
+                    )
                 }
             }
 

@@ -43,7 +43,9 @@ class MainActivity : ComponentActivity() {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* Results handled reactively by refreshing device status */ }
+    ) {
+        checkAndStartNearby()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +57,8 @@ class MainActivity : ComponentActivity() {
         }
         if (missingPermissions.isNotEmpty()) {
             permissionLauncher.launch(missingPermissions.toTypedArray())
+        } else {
+            checkAndStartNearby()
         }
 
         // Note: Incoming message reception, persistence, and auto-queue flushing
@@ -64,6 +68,21 @@ class MainActivity : ComponentActivity() {
             CrisosTheme {
                 CrisosNavHost()
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        checkAndStartNearby()
+    }
+
+    private fun checkAndStartNearby() {
+        val app = application as? CrisosApplication ?: return
+        val hasPermissions = requiredPermissions.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (hasPermissions && !app.nearbyConnectionManager.isActive.value) {
+            app.nearbyConnectionManager.start()
         }
     }
 }

@@ -3,17 +3,16 @@ package com.crisos.app.ui.viewmodel
 import android.app.Application
 import android.bluetooth.BluetoothManager
 import android.content.Context
-import android.location.LocationManager
 import android.net.wifi.WifiManager
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.crisos.app.CrisosApplication
 import com.crisos.app.domain.model.DeviceStatus
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 
 /**
  * ViewModel for the Settings / Device Status screen.
+ * Reactively monitors Bluetooth, Wi-Fi, Location, and Nearby Connection peer states.
  */
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -21,24 +20,36 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val locationService = app.locationService
     private val nearbyManager = app.nearbyConnectionManager
 
-    private val _deviceStatus = MutableStateFlow(DeviceStatus())
-    val deviceStatus: StateFlow<DeviceStatus> = _deviceStatus.asStateFlow()
-
     val isNearbyActive = nearbyManager.isActive
+    val connectedPeerNames = nearbyManager.connectedPeerNames
+    val discoveredEndpoints = nearbyManager.discoveredEndpoints
 
-    fun refreshStatus() {
+    private val manualRefreshTrigger = MutableStateFlow(0)
+
+    val deviceStatus: StateFlow<DeviceStatus> = combine(
+        nearbyManager.isActive,
+        nearbyManager.connectedEndpoints,
+        nearbyManager.discoveredEndpoints,
+        manualRefreshTrigger
+    ) { isActive, connected, discovered, _ ->
         val bluetoothManager = app.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         val wifiManager = app.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val unconnectedDiscovered = (discovered.keys - connected).size
 
-        _deviceStatus.value = DeviceStatus(
+        DeviceStatus(
             isLocationPermissionGranted = locationService.hasLocationPermission(),
             isLocationEnabled = locationService.isLocationEnabled(),
             isBluetoothEnabled = bluetoothManager?.adapter?.isEnabled == true,
             isWifiEnabled = wifiManager?.isWifiEnabled == true,
-            isNearbyActive = nearbyManager.isActive.value,
-            connectedDeviceCount = nearbyManager.connectedEndpoints.value.size,
-            discoveredDeviceCount = nearbyManager.discoveredEndpoints.value.size
+            isNearbyActive = isActive,
+            connectedDeviceCount = connected.size,
+            discoveredDeviceCount = unconnectedDiscovered
         )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DeviceStatus())
+
+    fun refreshStatus() {
+        manualRefreshTrigger.update { it + 1 }
+        nearbyManager.rescanNow()
     }
 
     fun toggleNearby() {
@@ -47,6 +58,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         } else {
             nearbyManager.start()
         }
-        refreshStatus()
+        manualRefreshTrigger.update { it + 1 }
     }
 }
