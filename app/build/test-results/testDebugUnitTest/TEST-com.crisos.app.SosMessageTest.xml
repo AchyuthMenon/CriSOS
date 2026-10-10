@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.crisos.app.SosMessageTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-10T14:38:56" hostname="ACHYUTH" time="0.367">
+<testsuite name="com.crisos.app.SosMessageTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-10T15:46:27" hostname="ACHYUTH" time="0.208">
   <properties/>
-  <testcase name="testSosMessageSerializationAndDeserialization" classname="com.crisos.app.SosMessageTest" time="0.278"/>
-  <testcase name="testEntityUnknownEnumFallback" classname="com.crisos.app.SosMessageTest" time="0.046"/>
-  <testcase name="testFormatCoordinateDirections" classname="com.crisos.app.SosMessageTest" time="0.021"/>
-  <testcase name="testEntityDomainModelMapping" classname="com.crisos.app.SosMessageTest" time="0.006"/>
+  <testcase name="testSosMessageSerializationAndDeserialization" classname="com.crisos.app.SosMessageTest" time="0.193"/>
+  <testcase name="testEntityUnknownEnumFallback" classname="com.crisos.app.SosMessageTest" time="0.002"/>
+  <testcase name="testFormatCoordinateDirections" classname="com.crisos.app.SosMessageTest" time="0.004"/>
+  <testcase name="testEntityDomainModelMapping" classname="com.crisos.app.SosMessageTest" time="0.001"/>
   <testcase name="testSosMessageWithoutLocationSerialization" classname="com.crisos.app.SosMessageTest" time="0.003"/>
   <testcase name="testLocationStaleness" classname="com.crisos.app.SosMessageTest" time="0.002"/>
   <system-out><![CDATA[]]></system-out>

@@ -36,6 +36,19 @@ interface SosMessageDao {
     @Query("SELECT * FROM sos_messages WHERE (deliveryStatus = 'QUEUED' OR deliveryStatus = 'FAILED') AND direction = 'OUTGOING' ORDER BY createdAt ASC")
     suspend fun getPendingOutgoingMessagesOnce(): List<SosMessageEntity>
 
+    // Cloud synchronization queries (MongoDB Atlas)
+    @Query("SELECT * FROM sos_messages WHERE cloudSyncStatus = 'PENDING' OR cloudSyncStatus = 'FAILED' ORDER BY createdAt ASC")
+    suspend fun getPendingCloudSyncMessages(): List<SosMessageEntity>
+
+    @Query("UPDATE sos_messages SET cloudSyncStatus = :status, cloudSyncedAt = :syncedAt WHERE id = :messageId")
+    suspend fun updateCloudSyncStatus(messageId: String, status: String, syncedAt: Long?)
+
+    @Query("SELECT COUNT(*) FROM sos_messages WHERE cloudSyncStatus = 'PENDING' OR cloudSyncStatus = 'FAILED'")
+    fun getPendingCloudSyncCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM sos_messages WHERE cloudSyncStatus = 'SYNCED'")
+    fun getSyncedCloudCount(): Flow<Int>
+
     @Query("SELECT COUNT(*) FROM sos_messages")
     fun getMessageCount(): Flow<Int>
 

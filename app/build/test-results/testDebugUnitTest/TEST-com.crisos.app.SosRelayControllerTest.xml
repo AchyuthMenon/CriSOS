@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.crisos.app.SosRelayControllerTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-10T14:38:57" hostname="ACHYUTH" time="0.415">
+<testsuite name="com.crisos.app.SosRelayControllerTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-10T15:46:28" hostname="ACHYUTH" time="0.297">
   <properties/>
-  <testcase name="testConnectionChangesHandledSafely" classname="com.crisos.app.SosRelayControllerTest" time="0.332"/>
-  <testcase name="testMultiHopRelayPreservesSosIdAndIncrementsHop" classname="com.crisos.app.SosRelayControllerTest" time="0.032"/>
+  <testcase name="testConnectionChangesHandledSafely" classname="com.crisos.app.SosRelayControllerTest" time="0.224"/>
+  <testcase name="testMultiHopRelayPreservesSosIdAndIncrementsHop" classname="com.crisos.app.SosRelayControllerTest" time="0.012"/>
   <testcase name="testForwardsToAllEligiblePeersExcludingSender" classname="com.crisos.app.SosRelayControllerTest" time="0.006"/>
-  <testcase name="testExpiredMessagesStoredLocallyAndNotForwarded" classname="com.crisos.app.SosRelayControllerTest" time="0.013"/>
-  <testcase name="testReturningSosToOriginNotRelayed" classname="com.crisos.app.SosRelayControllerTest" time="0.006"/>
-  <testcase name="testPartialFailureDoesNotBlockOtherPeers" classname="com.crisos.app.SosRelayControllerTest" time="0.006"/>
+  <testcase name="testExpiredMessagesStoredLocallyAndNotForwarded" classname="com.crisos.app.SosRelayControllerTest" time="0.017"/>
+  <testcase name="testReturningSosToOriginNotRelayed" classname="com.crisos.app.SosRelayControllerTest" time="0.008"/>
+  <testcase name="testPartialFailureDoesNotBlockOtherPeers" classname="com.crisos.app.SosRelayControllerTest" time="0.007"/>
   <testcase name="testDuplicateReceiptIgnored" classname="com.crisos.app.SosRelayControllerTest" time="0.007"/>
-  <testcase name="testHopLimitStopsForwardingAtMaxHops" classname="com.crisos.app.SosRelayControllerTest" time="0.012"/>
+  <testcase name="testHopLimitStopsForwardingAtMaxHops" classname="com.crisos.app.SosRelayControllerTest" time="0.013"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

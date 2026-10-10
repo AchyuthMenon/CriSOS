@@ -31,12 +31,12 @@ public final class CrisosDatabase_Impl extends CrisosDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(1) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(2) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS `sos_messages` (`id` TEXT NOT NULL, `messageType` TEXT NOT NULL, `senderDeviceId` TEXT NOT NULL, `emergencyCategory` TEXT NOT NULL, `description` TEXT NOT NULL, `assistanceTypes` TEXT NOT NULL, `latitude` REAL, `longitude` REAL, `locationAccuracyMeters` REAL, `locationTimestamp` INTEGER, `createdAt` INTEGER NOT NULL, `expiresAt` INTEGER NOT NULL, `hopCount` INTEGER NOT NULL, `maxHopCount` INTEGER NOT NULL, `deliveryStatus` TEXT NOT NULL, `direction` TEXT NOT NULL, `incidentId` TEXT, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `sos_messages` (`id` TEXT NOT NULL, `messageType` TEXT NOT NULL, `senderDeviceId` TEXT NOT NULL, `emergencyCategory` TEXT NOT NULL, `description` TEXT NOT NULL, `assistanceTypes` TEXT NOT NULL, `latitude` REAL, `longitude` REAL, `locationAccuracyMeters` REAL, `locationTimestamp` INTEGER, `createdAt` INTEGER NOT NULL, `expiresAt` INTEGER NOT NULL, `hopCount` INTEGER NOT NULL, `maxHopCount` INTEGER NOT NULL, `deliveryStatus` TEXT NOT NULL, `direction` TEXT NOT NULL, `cloudSyncStatus` TEXT NOT NULL, `cloudSyncedAt` INTEGER, `incidentId` TEXT, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '25f29c174e8ed6c1220bdbc71d676e01')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b8bd2b66db77d3aaa37cdcd9018866a6')");
       }
 
       @Override
@@ -85,7 +85,7 @@ public final class CrisosDatabase_Impl extends CrisosDatabase {
       @NonNull
       public RoomOpenHelper.ValidationResult onValidateSchema(
           @NonNull final SupportSQLiteDatabase db) {
-        final HashMap<String, TableInfo.Column> _columnsSosMessages = new HashMap<String, TableInfo.Column>(17);
+        final HashMap<String, TableInfo.Column> _columnsSosMessages = new HashMap<String, TableInfo.Column>(19);
         _columnsSosMessages.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsSosMessages.put("messageType", new TableInfo.Column("messageType", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsSosMessages.put("senderDeviceId", new TableInfo.Column("senderDeviceId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -102,6 +102,8 @@ public final class CrisosDatabase_Impl extends CrisosDatabase {
         _columnsSosMessages.put("maxHopCount", new TableInfo.Column("maxHopCount", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsSosMessages.put("deliveryStatus", new TableInfo.Column("deliveryStatus", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsSosMessages.put("direction", new TableInfo.Column("direction", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsSosMessages.put("cloudSyncStatus", new TableInfo.Column("cloudSyncStatus", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsSosMessages.put("cloudSyncedAt", new TableInfo.Column("cloudSyncedAt", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsSosMessages.put("incidentId", new TableInfo.Column("incidentId", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysSosMessages = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesSosMessages = new HashSet<TableInfo.Index>(0);
@@ -114,7 +116,7 @@ public final class CrisosDatabase_Impl extends CrisosDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "25f29c174e8ed6c1220bdbc71d676e01", "e4f6c7c6ae4ba184aaecfe64f1036db0");
+    }, "b8bd2b66db77d3aaa37cdcd9018866a6", "583e3e3f2419a080be98e8a7a3529bff");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;

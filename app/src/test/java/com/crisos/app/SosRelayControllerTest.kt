@@ -50,6 +50,21 @@ class FakeSosMessageDao : SosMessageDao {
             it.direction == "OUTGOING" && (it.deliveryStatus == "QUEUED" || it.deliveryStatus == "FAILED")
         }
 
+    override suspend fun getPendingCloudSyncMessages(): List<SosMessageEntity> =
+        messages.values.filter { it.cloudSyncStatus == "PENDING" || it.cloudSyncStatus == "FAILED" }
+
+    override suspend fun updateCloudSyncStatus(messageId: String, status: String, syncedAt: Long?) {
+        messages[messageId]?.let {
+            messages[messageId] = it.copy(cloudSyncStatus = status, cloudSyncedAt = syncedAt)
+        }
+    }
+
+    override fun getPendingCloudSyncCount(): Flow<Int> =
+        flowOf(messages.values.count { it.cloudSyncStatus == "PENDING" || it.cloudSyncStatus == "FAILED" })
+
+    override fun getSyncedCloudCount(): Flow<Int> =
+        flowOf(messages.values.count { it.cloudSyncStatus == "SYNCED" })
+
     override fun getAllMessages(): Flow<List<SosMessageEntity>> = flowOf(messages.values.toList())
     override fun getSentMessages(): Flow<List<SosMessageEntity>> =
         flowOf(messages.values.filter { it.direction == "OUTGOING" })

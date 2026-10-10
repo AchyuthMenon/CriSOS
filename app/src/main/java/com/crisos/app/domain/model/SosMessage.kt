@@ -6,7 +6,7 @@ import java.util.UUID
  * Core SOS message model used throughout the app.
  *
  * Location fields are nullable — an SOS can exist without coordinates.
- * Hop count fields are reserved for future relay support.
+ * Includes both peer-to-peer [deliveryStatus] and remote MongoDB Atlas [cloudSyncStatus].
  */
 data class SosMessage(
     val id: String = UUID.randomUUID().toString(),
@@ -26,14 +26,18 @@ data class SosMessage(
     val createdAt: Long = System.currentTimeMillis(),
     val expiresAt: Long = createdAt + (24 * 60 * 60 * 1000), // default 24h
 
-    // Relay support (reserved for future)
+    // Relay support
     val hopCount: Int = 0,
     val maxHopCount: Int = 5,
 
-    // Status
+    // Peer-to-peer delivery status
     val deliveryStatus: DeliveryStatus = DeliveryStatus.DRAFT,
     val direction: MessageDirection = MessageDirection.OUTGOING,
 
-    // Grouping (reserved for future incident grouping)
+    // Remote cloud storage (MongoDB Atlas) synchronization status
+    val cloudSyncStatus: CloudSyncStatus = CloudSyncStatus.PENDING,
+    val cloudSyncedAt: Long? = null,
+
+    // Grouping (reserved for incident grouping)
     val incidentId: String? = null
 )

@@ -284,6 +284,110 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(16.dp))
 
+            // Cloud Storage (MongoDB Atlas)
+            SettingsSectionCard(title = "Cloud Storage (MongoDB Atlas)") {
+                val pendingCount by viewModel.pendingCloudSyncCount.collectAsState()
+                val syncedCount by viewModel.syncedCloudCount.collectAsState()
+                val backendUrl by viewModel.backendUrl.collectAsState()
+                var editingUrl by remember(backendUrl) { mutableStateOf(backendUrl) }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Remote Atlas Sync",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextPrimary
+                        )
+                        Text(
+                            if (viewModel.isInternetAvailable) "Internet Connected — Synchronizing via WorkManager"
+                            else "Offline — Messages retained locally until internet connects",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (viewModel.isInternetAvailable) StatusGreen else WarningAmber
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "$syncedCount",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = StatusGreen,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Synced to Atlas",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "$pendingCount",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = if (pendingCount > 0) WarningAmber else StatusBlue,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Pending Upload",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(color = SurfaceBorder)
+                Spacer(Modifier.height(10.dp))
+
+                Text(
+                    "Backend API Base URL:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextSecondary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = editingUrl,
+                    onValueChange = {
+                        editingUrl = it
+                        viewModel.updateBackendUrl(it)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    placeholder = { Text("http://10.0.2.2:3000", style = MaterialTheme.typography.bodySmall) }
+                )
+
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = { viewModel.triggerCloudSyncNow() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusBlue)
+                ) {
+                    Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Trigger Cloud Sync Now")
+                }
+
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "CriSOS automatically queues all created and received SOS messages and uploads them to MongoDB Atlas via WorkManager whenever internet access is restored.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
             // Privacy
             SettingsSectionCard(title = "Privacy") {
                 Text(

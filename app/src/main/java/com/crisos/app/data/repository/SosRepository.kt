@@ -2,6 +2,7 @@ package com.crisos.app.data.repository
 
 import com.crisos.app.data.local.SosMessageDao
 import com.crisos.app.data.local.SosMessageEntity
+import com.crisos.app.domain.model.CloudSyncStatus
 import com.crisos.app.domain.model.DeliveryStatus
 import com.crisos.app.domain.model.SosMessage
 import kotlinx.coroutines.flow.Flow
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.map
 /**
  * Repository for SOS message persistence.
  * All operations go through Room — messages are always persisted before transmission.
+ * Supports both peer-to-peer delivery tracking and remote MongoDB Atlas cloud synchronization.
  */
 class SosRepository(private val dao: SosMessageDao) {
 
@@ -30,6 +32,18 @@ class SosRepository(private val dao: SosMessageDao) {
 
     suspend fun getPendingOutgoingMessagesOnce(): List<SosMessage> =
         dao.getPendingOutgoingMessagesOnce().map { it.toDomainModel() }
+
+    // Cloud sync queries
+    suspend fun getPendingCloudSyncMessages(): List<SosMessage> =
+        dao.getPendingCloudSyncMessages().map { it.toDomainModel() }
+
+    suspend fun updateCloudSyncStatus(messageId: String, status: CloudSyncStatus, syncedAt: Long? = null) {
+        dao.updateCloudSyncStatus(messageId, status.name, syncedAt)
+    }
+
+    fun getPendingCloudSyncCount(): Flow<Int> = dao.getPendingCloudSyncCount()
+
+    fun getSyncedCloudCount(): Flow<Int> = dao.getSyncedCloudCount()
 
     fun getMessageCount(): Flow<Int> = dao.getMessageCount()
 

@@ -7,6 +7,7 @@ import com.crisos.app.domain.model.*
 /**
  * Room entity for SOS messages.
  * Mirrors [SosMessage] but uses simple types for Room compatibility.
+ * Tracks both peer-to-peer [deliveryStatus] and remote MongoDB Atlas [cloudSyncStatus].
  */
 @Entity(tableName = "sos_messages")
 data class SosMessageEntity(
@@ -30,6 +31,10 @@ data class SosMessageEntity(
 
     val deliveryStatus: String,
     val direction: String,
+
+    // Cloud synchronization fields
+    val cloudSyncStatus: String = CloudSyncStatus.PENDING.name,
+    val cloudSyncedAt: Long? = null,
 
     val incidentId: String?
 ) {
@@ -65,6 +70,12 @@ data class SosMessageEntity(
         } catch (_: Exception) {
             MessageDirection.OUTGOING
         },
+        cloudSyncStatus = try {
+            CloudSyncStatus.valueOf(cloudSyncStatus)
+        } catch (_: Exception) {
+            CloudSyncStatus.PENDING
+        },
+        cloudSyncedAt = cloudSyncedAt,
         incidentId = incidentId
     )
 
@@ -86,6 +97,8 @@ data class SosMessageEntity(
             maxHopCount = msg.maxHopCount,
             deliveryStatus = msg.deliveryStatus.name,
             direction = msg.direction.name,
+            cloudSyncStatus = msg.cloudSyncStatus.name,
+            cloudSyncedAt = msg.cloudSyncedAt,
             incidentId = msg.incidentId
         )
     }

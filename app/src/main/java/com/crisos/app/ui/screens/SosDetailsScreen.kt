@@ -259,6 +259,10 @@ fun SosDetailsScreen(
                 DetailRow("Expires", formatFullTimestamp(msg.expiresAt))
                 DetailRow("Direction", msg.direction.name)
                 DetailRow("Hop Count", "${msg.hopCount} / ${msg.maxHopCount}")
+                DetailRow("Cloud Sync", msg.cloudSyncStatus.name)
+                if (msg.cloudSyncedAt != null) {
+                    DetailRow("Synced to Atlas", formatFullTimestamp(msg.cloudSyncedAt))
+                }
                 if (msg.incidentId != null) {
                     DetailRow("Incident ID", msg.incidentId.take(12) + "…")
                 }

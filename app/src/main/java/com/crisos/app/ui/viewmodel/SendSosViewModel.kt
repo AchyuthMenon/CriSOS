@@ -107,6 +107,9 @@ class SendSosViewModel(application: Application) : AndroidViewModel(application)
             repository.saveMessage(message)
             app.relayController.registerLocallyOriginatedMessage(message.id)
 
+            // Trigger cloud sync to MongoDB Atlas if internet is available, or queue for later
+            app.cloudSyncManager.triggerImmediateSyncIfOnline()
+
             // Attempt to send via Nearby
             val connected = nearbyManager.connectedEndpoints.value
             if (connected.isNotEmpty()) {

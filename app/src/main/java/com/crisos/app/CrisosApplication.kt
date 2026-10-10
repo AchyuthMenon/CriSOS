@@ -6,10 +6,11 @@ import com.crisos.app.communication.NearbyConnectionManager
 import com.crisos.app.communication.SosRelayController
 import com.crisos.app.data.local.CrisosDatabase
 import com.crisos.app.data.repository.SosRepository
-import com.crisos.app.location.LocationService
-
 import com.crisos.app.domain.model.DeliveryStatus
 import com.crisos.app.domain.model.MessageDirection
+import com.crisos.app.location.LocationService
+import com.crisos.app.sync.CloudApiClient
+import com.crisos.app.sync.CloudSyncManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,6 +35,10 @@ class CrisosApplication : Application() {
         private set
     lateinit var relayController: SosRelayController
         private set
+    lateinit var cloudApiClient: CloudApiClient
+        private set
+    lateinit var cloudSyncManager: CloudSyncManager
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -41,6 +46,8 @@ class CrisosApplication : Application() {
         sosRepository = SosRepository(database.sosMessageDao())
         locationService = LocationService(this)
         nearbyConnectionManager = NearbyConnectionManager(this)
+        cloudApiClient = CloudApiClient()
+        cloudSyncManager = CloudSyncManager(this)
 
         val localDeviceId = DeviceUtils.getDeviceId(this)
         relayController = SosRelayController(
@@ -52,6 +59,11 @@ class CrisosApplication : Application() {
             getConnectedEndpoints = { nearbyConnectionManager.connectedEndpoints.value },
             coroutineScope = applicationScope
         )
+
+        // Trigger cloud synchronization whenever a received or relayed SOS is persisted
+        relayController.onSosStored = {
+            cloudSyncManager.triggerImmediateSyncIfOnline()
+        }
 
         // Application-level message receive handler with multi-hop relaying
         nearbyConnectionManager.onMessageReceived = { incomingMessage, senderEndpointId ->
@@ -76,7 +88,7 @@ class CrisosApplication : Application() {
             }
         }
 
-        // Milestone 5: Automatic queue flush when a nearby peer connects
+        // Automatic queue flush when a nearby peer connects
         nearbyConnectionManager.onEndpointConnected = { endpointId ->
             applicationScope.launch {
                 val pending = sosRepository.getPendingOutgoingMessagesOnce()
@@ -85,5 +97,8 @@ class CrisosApplication : Application() {
                 }
             }
         }
+
+        // Schedule persistent WorkManager background sync for when internet is connected
+        cloudSyncManager.scheduleCloudSync()
     }
 }

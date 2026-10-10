@@ -17,6 +17,7 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "DEFAULT_BACKEND_URL", "\"http://10.0.2.2:3000\"")
     }
 
     buildTypes {
@@ -44,6 +45,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -70,6 +72,12 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
+    // WorkManager (Reliable background sync with network constraints)
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // HTTP Client (OkHttp)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     // Location
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
@@ -86,6 +94,7 @@ dependencies {
     // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("org.mockito:mockito-core:5.14.2")
 
     // Debug tooling
     debugImplementation("androidx.compose.ui:ui-tooling")

@@ -55,6 +55,12 @@ class SosRelayController(
     private val claimMutex = Mutex()
 
     /**
+     * Optional callback invoked whenever a message is persisted locally in Room.
+     * Used by cloud sync to trigger upload without coupling relaying to cloud network logic.
+     */
+    var onSosStored: ((SosMessage) -> Unit)? = null
+
+    /**
      * Mark a locally created message ID as processed so it is never re-processed if received back.
      */
     fun registerLocallyOriginatedMessage(messageId: String) {
@@ -110,6 +116,7 @@ class SosRelayController(
                 direction = MessageDirection.INCOMING
             )
             repository.saveMessage(expiredMsg)
+            onSosStored?.invoke(expiredMsg)
             return RelayResult.STORED_NO_FORWARD_EXPIRED
         }
 
@@ -119,6 +126,7 @@ class SosRelayController(
             direction = MessageDirection.INCOMING
         )
         repository.saveMessage(receivedMsg)
+        onSosStored?.invoke(receivedMsg)
         Log.i(
             TAG,
             "[Relay] Saved received SOS ${message.id} (origin: ${message.senderDeviceId}, hop: ${message.hopCount}) from $senderEndpointId"
