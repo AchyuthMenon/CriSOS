@@ -1,0 +1,271 @@
+package com.crisos.app.ui.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.crisos.app.ui.theme.*
+import com.crisos.app.ui.viewmodel.SettingsViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    onNavigateBack: () -> Unit,
+    viewModel: SettingsViewModel = viewModel()
+) {
+    val deviceStatus by viewModel.deviceStatus.collectAsState()
+    val isNearbyActive by viewModel.isNearbyActive.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshStatus()
+    }
+
+    Scaffold(
+        containerColor = NavyDark,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Settings & Status",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = TextPrimary
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = TextSecondary
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.refreshStatus() }) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            tint = TextSecondary
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = NavyDark)
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+        ) {
+            Spacer(Modifier.height(8.dp))
+
+            // Device capabilities
+            SettingsSectionCard(title = "Device Capabilities") {
+                SettingsStatusRow(
+                    icon = Icons.Default.LocationOn,
+                    label = "Location Permission",
+                    isActive = deviceStatus.isLocationPermissionGranted,
+                    activeText = "Granted",
+                    inactiveText = "Not Granted — Required for GPS"
+                )
+                HorizontalDivider(color = SurfaceBorder, modifier = Modifier.padding(vertical = 6.dp))
+                SettingsStatusRow(
+                    icon = Icons.Default.GpsFixed,
+                    label = "Location Services",
+                    isActive = deviceStatus.isLocationEnabled,
+                    activeText = "Enabled",
+                    inactiveText = "Disabled — Enable GPS in system settings"
+                )
+                HorizontalDivider(color = SurfaceBorder, modifier = Modifier.padding(vertical = 6.dp))
+                SettingsStatusRow(
+                    icon = Icons.Default.Bluetooth,
+                    label = "Bluetooth",
+                    isActive = deviceStatus.isBluetoothEnabled,
+                    activeText = "Enabled",
+                    inactiveText = "Disabled — Needed for Nearby"
+                )
+                HorizontalDivider(color = SurfaceBorder, modifier = Modifier.padding(vertical = 6.dp))
+                SettingsStatusRow(
+                    icon = Icons.Default.Wifi,
+                    label = "Wi-Fi",
+                    isActive = deviceStatus.isWifiEnabled,
+                    activeText = "Enabled",
+                    inactiveText = "Disabled — Needed for Nearby"
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Nearby Communication
+            SettingsSectionCard(title = "Nearby Communication") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            "Nearby Connections",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextPrimary
+                        )
+                        Text(
+                            if (isNearbyActive) "Active — Discovering and advertising"
+                            else "Inactive — Tap to start",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isNearbyActive) StatusGreen else TextMuted
+                        )
+                    }
+                    Switch(
+                        checked = isNearbyActive,
+                        onCheckedChange = { viewModel.toggleNearby() },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = StatusGreen
+                        )
+                    )
+                }
+
+                if (isNearbyActive) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "${deviceStatus.discoveredDeviceCount}",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = StatusBlue,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Discovered",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "${deviceStatus.connectedDeviceCount}",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = StatusGreen,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Connected",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Privacy
+            SettingsSectionCard(title = "Privacy") {
+                Text(
+                    "• Location data is only shared when you choose to include it in an SOS.\n" +
+                            "• Messages are sent to nearby CriSOS devices only.\n" +
+                            "• No data is sent to external servers in this version.\n" +
+                            "• Your device ID is used to identify messages you send.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // About
+            SettingsSectionCard(title = "About CriSOS") {
+                DetailRow("Version", "0.1.0")
+                DetailRow("Build", "Prototype")
+                DetailRow("Architecture", "MVVM + Room + Nearby")
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "CriSOS enables peer-to-peer emergency communication when mobile networks " +
+                            "and internet are unavailable. Messages are exchanged directly between " +
+                            "nearby devices using Bluetooth and Wi-Fi Direct.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted
+                )
+            }
+
+            Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+fun SettingsSectionCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = TextMuted,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(12.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+fun SettingsStatusRow(
+    icon: ImageVector,
+    label: String,
+    isActive: Boolean,
+    activeText: String,
+    inactiveText: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (isActive) StatusGreen else StatusGray,
+            modifier = Modifier.size(22.dp)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextPrimary
+            )
+            Text(
+                text = if (isActive) activeText else inactiveText,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isActive) StatusGreen else WarningAmber
+            )
+        }
+    }
+}

@@ -1,0 +1,4 @@
+com.crisos.app.test.app-androidTest-0 C:\CriSOS\app\build\generated\res\resValues\androidTest\debug
+com.crisos.app.test.app-mergeDebugAndroidTestResources-1 C:\CriSOS\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
+com.crisos.app.test.app-mergeDebugAndroidTestResources-2 C:\CriSOS\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
+com.crisos.app.test.app-debugAndroidTest-3 C:\CriSOS\app\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources
