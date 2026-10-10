@@ -9,6 +9,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * Manages device-to-device communication via Google Nearby Connections API.
@@ -43,8 +44,8 @@ class NearbyConnectionManager(private val context: Context) {
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
-    // Callback for received messages
-    var onMessageReceived: ((SosMessage) -> Unit)? = null
+    // Callback for received messages (message, senderEndpointId)
+    var onMessageReceived: ((SosMessage, String) -> Unit)? = null
 
     // Callback for send confirmations
     var onMessageSent: ((String, Boolean) -> Unit)? = null // messageId, success
@@ -114,7 +115,7 @@ class NearbyConnectionManager(private val context: Context) {
     private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
             Log.d(TAG, "Found endpoint: $endpointId (${info.endpointName})")
-            _discoveredEndpoints.value = _discoveredEndpoints.value + (endpointId to info.endpointName)
+            _discoveredEndpoints.update { it + (endpointId to info.endpointName) }
 
             // Auto-connect
             connectionsClient.requestConnection(
@@ -128,7 +129,7 @@ class NearbyConnectionManager(private val context: Context) {
 
         override fun onEndpointLost(endpointId: String) {
             Log.d(TAG, "Lost endpoint: $endpointId")
-            _discoveredEndpoints.value = _discoveredEndpoints.value - endpointId
+            _discoveredEndpoints.update { it - endpointId }
         }
     }
 
@@ -143,7 +144,7 @@ class NearbyConnectionManager(private val context: Context) {
             when (result.status.statusCode) {
                 ConnectionsStatusCodes.STATUS_OK -> {
                     Log.d(TAG, "Connected to: $endpointId")
-                    _connectedEndpoints.value = _connectedEndpoints.value + endpointId
+                    _connectedEndpoints.update { it + endpointId }
                     onEndpointConnected?.invoke(endpointId)
                 }
                 ConnectionsStatusCodes.STATUS_CONNECTION_REJECTED -> {
@@ -157,7 +158,7 @@ class NearbyConnectionManager(private val context: Context) {
 
         override fun onDisconnected(endpointId: String) {
             Log.d(TAG, "Disconnected from: $endpointId")
-            _connectedEndpoints.value = _connectedEndpoints.value - endpointId
+            _connectedEndpoints.update { it - endpointId }
         }
     }
 
@@ -168,10 +169,10 @@ class NearbyConnectionManager(private val context: Context) {
                 try {
                     val json = String(bytes, Charsets.UTF_8)
                     val message = gson.fromJson(json, SosMessage::class.java)
-                    Log.d(TAG, "Received SOS message: ${message.id} from $endpointId")
-                    onMessageReceived?.invoke(message)
+                    Log.d(TAG, "Received SOS message: ${message.id} from $endpointId (hop ${message.hopCount})")
+                    onMessageReceived?.invoke(message, endpointId)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to parse received payload", e)
+                    Log.e(TAG, "Failed to parse received payload from $endpointId", e)
                 }
             }
         }

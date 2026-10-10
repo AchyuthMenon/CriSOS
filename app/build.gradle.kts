@@ -38,6 +38,10 @@ android {
         jvmTarget = "17"
     }
 
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildFeatures {
         compose = true
     }
@@ -81,6 +85,7 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 
     // Debug tooling
     debugImplementation("androidx.compose.ui:ui-tooling")

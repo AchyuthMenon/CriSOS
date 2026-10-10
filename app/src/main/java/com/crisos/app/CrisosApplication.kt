@@ -1,7 +1,9 @@
 package com.crisos.app
 
 import android.app.Application
+import com.crisos.app.communication.DeviceUtils
 import com.crisos.app.communication.NearbyConnectionManager
+import com.crisos.app.communication.SosRelayController
 import com.crisos.app.data.local.CrisosDatabase
 import com.crisos.app.data.repository.SosRepository
 import com.crisos.app.location.LocationService
@@ -30,6 +32,8 @@ class CrisosApplication : Application() {
         private set
     lateinit var nearbyConnectionManager: NearbyConnectionManager
         private set
+    lateinit var relayController: SosRelayController
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -38,16 +42,21 @@ class CrisosApplication : Application() {
         locationService = LocationService(this)
         nearbyConnectionManager = NearbyConnectionManager(this)
 
-        // Application-level message receive handler (persists offline even if UI changes)
-        nearbyConnectionManager.onMessageReceived = { incomingMessage ->
+        val localDeviceId = DeviceUtils.getDeviceId(this)
+        relayController = SosRelayController(
+            repository = sosRepository,
+            localDeviceId = localDeviceId,
+            sendToEndpoint = { endpointId: String, msg: com.crisos.app.domain.model.SosMessage, onResult: (Boolean) -> Unit ->
+                nearbyConnectionManager.sendMessageToEndpoint(endpointId, msg, onResult)
+            },
+            getConnectedEndpoints = { nearbyConnectionManager.connectedEndpoints.value },
+            coroutineScope = applicationScope
+        )
+
+        // Application-level message receive handler with multi-hop relaying
+        nearbyConnectionManager.onMessageReceived = { incomingMessage, senderEndpointId ->
             applicationScope.launch {
-                if (!sosRepository.messageExists(incomingMessage.id)) {
-                    val receivedMsg = incomingMessage.copy(
-                        deliveryStatus = DeliveryStatus.RECEIVED,
-                        direction = MessageDirection.INCOMING
-                    )
-                    sosRepository.saveMessage(receivedMsg)
-                }
+                relayController.handleIncomingMessage(incomingMessage, senderEndpointId)
             }
         }
 
@@ -55,7 +64,12 @@ class CrisosApplication : Application() {
         nearbyConnectionManager.onMessageSent = { messageId, success ->
             applicationScope.launch {
                 if (success) {
-                    sosRepository.updateDeliveryStatus(messageId, DeliveryStatus.SENT)
+                    val current = sosRepository.getMessageByIdOnce(messageId)
+                    if (current?.direction == MessageDirection.INCOMING) {
+                        sosRepository.updateDeliveryStatus(messageId, DeliveryStatus.RELAYED)
+                    } else {
+                        sosRepository.updateDeliveryStatus(messageId, DeliveryStatus.SENT)
+                    }
                 } else {
                     sosRepository.updateDeliveryStatus(messageId, DeliveryStatus.FAILED)
                 }

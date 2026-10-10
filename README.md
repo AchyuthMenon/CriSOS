@@ -73,20 +73,30 @@ To run local JVM unit tests without physical devices:
 ```
 Tests verify JSON message serialization, Room entity mapping, coordinate formatting, and location staleness checks.
 
-### Testing Nearby Connections on Physical Devices
-1. Install the APK (`app/build/outputs/apk/debug/app-debug.apk`) on **two physical phones**.
-2. Grant all requested permissions on both devices (Location, Nearby devices/Bluetooth).
-3. On both phones, go to Settings → toggle "Nearby Connections" ON.
-4. Put both phones in **airplane mode**, then re-enable **Bluetooth** and **Wi-Fi** (not mobile data or internet Wi-Fi).
-5. Send an SOS from Phone A — it is persisted locally and transferred directly to Phone B.
-6. Check Phone B's **Received Alerts** tab to view the incoming alert with category, timestamp, description, and GPS coordinates.
-7. **Offline Queue Test (Store-and-Forward)**: Turn Nearby Connections OFF on Phone B, send an SOS from Phone A (status becomes `QUEUED`). Re-enable Nearby on Phone B; when the devices reconnect, Phone A automatically flushes and delivers the queued message to Phone B.
-
-> **Note:** Nearby Connections requires physical Bluetooth/Wi-Fi Direct hardware and does NOT work on standard Android emulators. Two physical devices are required.
+### Testing Multi-Hop Relay (Phone A → Phone B → Phone C)
+Verify multi-hop forwarding without direct communication between Phone A and Phone C:
+1. **Prepare 3 physical Android phones** (Phone A, Phone B, Phone C) with `CriSOS.apk` installed.
+2. Put all 3 phones in **Airplane Mode**, then turn **ON Bluetooth and Wi-Fi** on each.
+3. Launch **CriSOS** and grant all permissions on all 3 phones. In **Settings**, ensure "Nearby Connections" is **Active**.
+4. **Physical Placement**:
+   - Place **Phone B** in the middle (e.g. hallway/living room).
+   - Place **Phone A** in Room 1 (within range of Phone B, but out of Bluetooth/Wi-Fi range of Phone C).
+   - Place **Phone C** in Room 2 (within range of Phone B, but out of range of Phone A).
+   - Confirm in Settings: Phone A shows 1 connected device (B); Phone B shows 2 connected devices (A & C); Phone C shows 1 connected device (B).
+5. **Send SOS from Phone A**:
+   - Select emergency category, enter a description, and tap **Send SOS Alert**.
+   - Phone A saves the message with `hopCount = 0` and sends it to Phone B.
+6. **Observe Phone B (Relay Node)**:
+   - Phone B receives the alert, displays it in **Received Alerts** (with `hopCount = 0`), and automatically forwards a copy with `hopCount = 1` to Phone C (excluding immediate sender Phone A).
+   - Phone B's local message status updates to `Relayed through intermediate device`.
+7. **Observe Phone C (Destination Node)**:
+   - Phone C receives the SOS alert and alerts the user.
+   - Inspect **SOS Details** on Phone C: it displays the **exact same SOS ID**, original sender device ID, location coordinates, and shows `Hop Count: 1 / 5`.
+8. **Loop Suppression Test**:
+   - Phone C attempts to forward, but B rejects it as an atomic duplicate, preventing endless echo loops.
 
 ## Current Limitations
 
-- **No multi-hop relay** — messages go directly between two connected devices only.
 - **No message acknowledgements** — the sender knows "sent" vs "queued" but not "read."
 - **No offline maps** — coordinates are shown as text, not on a map.
 - **No backend sync** — messages stay on-device only.
@@ -99,15 +109,14 @@ Tests verify JSON message serialization, Room entity mapping, coordinate formatt
 - [x] **Milestone 2** — Local SOS: Room persistence, message model, send/receive history
 - [x] **Milestone 3** — Geolocation: GPS integration, accuracy/staleness indicators
 - [x] **Milestone 4** — Direct offline communication: Nearby Connections integration
-- [x] **Milestone 5** — Reliability: persist-before-send, duplicate detection, status tracking
-- [x] **Milestone 6** — Relay preparation: hop count/max fields, expiry timestamps
+- [x] **Milestone 5** — Reliability: persist-before-send, duplicate detection, status tracking, auto-queue flush
+- [x] **Milestone 6** — Multi-hop relay forwarding: peer exclusion, loop & duplicate suppression, MAX_HOPS (5) limit, expiry enforcement
 
 ## Future Features
 
-1. Multi-hop store-and-forward relay
-2. Message acknowledgements (received → read → responding)
-3. Community web dashboard (React + map)
-4. Backend synchronization when internet returns
+1. Message acknowledgements (received → read → responding)
+2. Community web dashboard (React + map)
+3. Backend synchronization when internet returns
 5. Incident grouping
 6. Emergency bulletins
 7. Volunteer coordination

@@ -39,7 +39,7 @@ class SendSosViewModel(application: Application) : AndroidViewModel(application)
     val uiState: StateFlow<SendSosUiState> = _uiState.asStateFlow()
 
     private val deviceId: String by lazy {
-        Settings.Secure.getString(app.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown"
+        com.crisos.app.communication.DeviceUtils.getDeviceId(app)
     }
 
     fun updateCategory(category: EmergencyCategory) {
@@ -105,6 +105,7 @@ class SendSosViewModel(application: Application) : AndroidViewModel(application)
 
             // Always persist first
             repository.saveMessage(message)
+            app.relayController.registerLocallyOriginatedMessage(message.id)
 
             // Attempt to send via Nearby
             val connected = nearbyManager.connectedEndpoints.value

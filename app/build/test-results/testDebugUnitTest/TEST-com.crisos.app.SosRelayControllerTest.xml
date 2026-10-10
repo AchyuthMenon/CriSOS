@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.crisos.app.SosRelayControllerTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-10T13:20:17" hostname="ACHYUTH" time="0.644">
+  <properties/>
+  <testcase name="testConnectionChangesHandledSafely" classname="com.crisos.app.SosRelayControllerTest" time="0.561"/>
+  <testcase name="testMultiHopRelayPreservesSosIdAndIncrementsHop" classname="com.crisos.app.SosRelayControllerTest" time="0.035"/>
+  <testcase name="testForwardsToAllEligiblePeersExcludingSender" classname="com.crisos.app.SosRelayControllerTest" time="0.006"/>
+  <testcase name="testExpiredMessagesStoredLocallyAndNotForwarded" classname="com.crisos.app.SosRelayControllerTest" time="0.014"/>
+  <testcase name="testReturningSosToOriginNotRelayed" classname="com.crisos.app.SosRelayControllerTest" time="0.005"/>
+  <testcase name="testPartialFailureDoesNotBlockOtherPeers" classname="com.crisos.app.SosRelayControllerTest" time="0.005"/>
+  <testcase name="testDuplicateReceiptIgnored" classname="com.crisos.app.SosRelayControllerTest" time="0.006"/>
+  <testcase name="testHopLimitStopsForwardingAtMaxHops" classname="com.crisos.app.SosRelayControllerTest" time="0.01"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
